@@ -12,55 +12,58 @@ import react from '@vitejs/plugin-react';
 import {createRequire} from 'node:module';
 import {defineConfig} from 'vite';
 
+import viteCopyEsm from './viteCopyEsm';
+import viteCopyExcalidrawAssets from './viteCopyExcalidrawAssets';
+
 const require = createRequire(import.meta.url);
 
 // https://vitejs.dev/config/
-export default defineConfig(({command}) => {
-  return {
-    build: {
-      outDir: 'build',
-      rollupOptions: {
-        input: {
-          main: new URL('./index.html', import.meta.url).pathname,
-          split: new URL('./split/index.html', import.meta.url).pathname,
-        },
-        onwarn(warning, warn) {
-          if (
-            warning.code === 'EVAL' &&
-            warning.id &&
-            /[\\/]node_modules[\\/]@excalidraw\/excalidraw[\\/]/.test(
-              warning.id,
-            )
-          ) {
-            return;
-          }
-          warn(warning);
-        },
+export default defineConfig(({mode}) => ({
+  build: {
+    outDir: 'build',
+    rollupOptions: {
+      input: {
+        main: new URL('./index.html', import.meta.url).pathname,
+        split: new URL('./split/index.html', import.meta.url).pathname,
       },
     },
-    define: {
-      'process.env.IS_PREACT': process.env.IS_PREACT,
+    ...(mode === 'production' && {
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          toplevel: true,
+        },
+        keep_classnames: true,
+      },
+    }),
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2022',
+      treeShaking: true,
     },
-    plugins: [
-      babel({
-        babelHelpers: 'bundled',
-        babelrc: false,
-        configFile: false,
-        exclude: '/**/node_modules/**',
-        extensions: ['jsx', 'js', 'ts', 'tsx', 'mjs'],
-        plugins: [
-          ['@babel/plugin-transform-flow-strip-types', {
+  },
+  plugins: [
+    babel({
+      babelHelpers: 'bundled',
+      babelrc: false,
+      configFile: false,
+      exclude: '/**/node_modules/**',
+      extensions: ['jsx', 'js', 'ts', 'tsx', 'mjs'],
+      plugins: [
+        ['@babel/plugin-transform-flow-strip-types', {
             noMinify: true,
           }],
-        ],
-        presets: [['@babel/preset-react', {runtime: 'automatic'}]],
-      }),
-      react(),
-      commonjs({
-        // This is required for React 19 (at least 19.0.0-beta-26f2496093-20240514)
-        // because @rollup/plugin-commonjs does not analyze it correctly
-        strictRequires: [/\/node_modules\/(react-dom|react)\/[^/]\.js$/],
-      }),
-    ],
-  };
-});
+      ],
+      presets: [['@babel/preset-react', {runtime: 'automatic'}]],
+    }),
+    react(),
+    ...viteCopyExcalidrawAssets(),
+    viteCopyEsm(),
+    commonjs({
+      // This is required for React 19 (at least 19.0.0-beta-26f2496093-20240514)
+      // because @rollup/plugin-commonjs does not analyze it correctly
+      strictRequires: [/\/node_modules\/(react-dom|react)\/[^/]\.js$/],
+    }),
+  ],
+}));
